@@ -1,6 +1,7 @@
 import requests
 from dotenv import load_dotenv
 import csv
+import time
 import os
 from utils.utils import calculate_time_between_dates_in_days, format_date
 
@@ -10,82 +11,76 @@ load_dotenv('.env')
 personal_access_token = os.getenv('PERSONAL_ACCESS_TOKEN')
 
 # URL da API GraphQL do GitHub
-github_graphQl_api_url = "https://api.github.com/graphql" 
+github_graphQl_api_url = "https://api.github.com/graphql"
 
-# Nome do arquivo TXT para persistir os dados
-txt_filename = 'extracted_data.txt'
-
-# Consulta GraphQL
-def build_query(number_of_repos, after_cursor=None):
-    after_clause = f', after: "{after_cursor}"' if after_cursor else ''
-    return f"""
-    {{
-        search(
-            type: REPOSITORY,
-            first: {number_of_repos}
-            query: "language:Java stars:>0"{after_clause}
-        ) {{
-            edges {{
-                cursor
-                node {{
-                    ... on Repository {{
+# Função para obter os repositórios mais populares com base no número de estrelas com paginação
+def fetch_repos_data(num_repos):
+    query = """
+    query($number_of_repos_per_request: Int!, $cursor: String) {
+        search(query: "language:Java stars:>0", type: REPOSITORY, first: $number_of_repos_per_request, after: $cursor)
+        {
+            edges {
+                node {
+                    ... on Repository {
                         name
                         url
                         stargazerCount
                         createdAt
-                        releases {{
+                        releases {
                             totalCount
-                        }}
-                        object(expression: "HEAD:") {{
-                            ... on Tree {{
-                                entries {{
-                                    name
-                                    type
-                                    object {{
-                                        ... on Blob {{
-                                            text
-                                        }}
-                                    }}
-                                }}
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-            pageInfo {{
-                endCursor
+                        }
+                    }
+                }
+            }
+            pageInfo {
                 hasNextPage
-            }}
-        }}
-    }}
+                endCursor
+            }
+        }
+    }
     """
+    
+    repos = []
+    cursor = None
 
-# Função para realizar chamada a API do Github para filtrar os repositórios
-def fetch_repos_data(number_of_repos):
-    # Cabeçalhos da requisição
+    while len(repos) < num_repos:
+        variables = {"number_of_repos_per_request": 20, "cursor": cursor}
+        result = run_graphql_query(query, variables)
+        edges = result["search"]["edges"]
+        repos.extend(edges)
+        
+        if not result["search"]["pageInfo"]["hasNextPage"]:
+            break
+        
+        cursor = result["search"]["pageInfo"]["endCursor"]
+
+    # Ordenar repositórios por número de estrelas (decrescente) após a recuperação dos dados
+    sorted_repos = sorted(repos, key=lambda r: r["node"]["stargazerCount"], reverse=True)
+
+    return sorted_repos[:num_repos]
+
+# Função para realizar chamada a API graphQL do Github para filtrar os repositórios
+def run_graphql_query(query, variables=None):
     headers = {
         "Authorization": f"Bearer {personal_access_token}",
         "Content-Type": "application/json"
     }
 
-    number_of_repos_per_request = 10
-    has_next_page = True
-    after_cursor = None
-    all_repositories = []
+    json = {"query": query, "variables": variables}
 
-    while has_next_page and len(all_repositories) < number_of_repos:
-        query = build_query(min(number_of_repos_per_request, number_of_repos - len(all_repositories)), after_cursor)
-        response = requests.post(github_graphQl_api_url, json={'query': query}, headers=headers)
-        
+    retry_attempts = 3
+    for attempt in range(retry_attempts):
+        response = requests.post(github_graphQl_api_url, json=json, headers=headers)
         if response.status_code == 200:
             result = response.json()
-            all_repositories.extend(result['data']['search']['edges'])
-            has_next_page = result['data']['search']['pageInfo']['hasNextPage']
-            after_cursor = result['data']['search']['pageInfo']['endCursor']
+            if "errors" in result:
+                raise Exception(f"Erro no GraphQL: {result['errors']}")
+            return result["data"]
+        elif response.status_code == 502 and attempt < retry_attempts - 1:
+            print(f"Retrying due to 502 error (attempt {attempt + 1})...")
+            time.sleep(3)  # Aguarda 3 segundos antes de tentar novamente
         else:
-            raise Exception(f"Failed to fetch repositories: {response.status_code}")
-
-    return all_repositories
+            raise Exception(f"Erro ao executar a query: {response.status_code}, {response.text}")
 
 # Função para salvar informações dos repositórios em um arquivo .csv
 def save_repo_info_to_csv(repos, filename):
@@ -121,7 +116,7 @@ def save_repo_info_to_csv(repos, filename):
 
 # Main
 if __name__ == "__main__":
-    number_of_repos = 10  # Número de repositórios
+    number_of_repos = 1000 # Número de repositórios
     try:
         popular_repos = fetch_repos_data(number_of_repos)
         save_repo_info_to_csv(popular_repos, "repos_info.csv")
