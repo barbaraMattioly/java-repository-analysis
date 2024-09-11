@@ -20,12 +20,6 @@ qualidade?
 **RQ 04.** Qual a relação entre o tamanho dos repositórios e as suas características de
 qualidade? 
 
-**RQ 05.** Sistemas populares são escritos nas linguagens mais populares?
-Métrica: linguagem primária de cada um desses repositórios
-
-**RQ 06.** Sistemas populares possuem um alto percentual de issues fechadas?
-Métrica: razão entre número de issues fechadas pelo total de issues Relatório Final:
-
 
 **Definições de métricas**
 Para cada questão de pesquisa, realizaremos a comparação entre as características do
