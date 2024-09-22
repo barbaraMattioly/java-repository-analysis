@@ -21,7 +21,7 @@ def summarize_all_repos(repo_list, csv_file="ck_summary.csv"):
             df = pd.read_csv(file_path)
 
             # Métricas que serão sumarizadas
-            metrics = ["cbo", "dit", "lcom"]
+            metrics = ["cbo", "dit", "lcom", "loc"]
 
             for metric in metrics:
                 if metric in df.columns:

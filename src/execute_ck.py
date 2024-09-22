@@ -2,14 +2,25 @@ import os
 import subprocess
 import time
 import shutil
+import stat
 import csv
 import concurrent.futures
 
 # Função para clonar o repositório
-def clone_repo(repo_url, repo_name):
-    if not os.path.exists(repo_name):
-        print(f"Clonando repositório {repo_name}...")
-        subprocess.run(["git", "clone", "--depth", "1", repo_url, repo_name], check=True)
+def clone_repo(repo_url, repo_name, retries=3, delay=5):
+    for attempt in range(retries):
+        try:
+            if not os.path.exists(repo_name):
+                print(f"Clonando repositório {repo_name}...")
+                subprocess.run(["git", "clone", "--depth", "1", repo_url, repo_name], check=True)
+            return
+        except subprocess.CalledProcessError as e:
+            if attempt < retries - 1:
+                print(f"Falha ao clonar {repo_name}, tentando novamente em {delay} segundos...")
+                time.sleep(delay)
+            else:
+                print(f"Falha ao clonar {repo_name} após {retries} tentativas.")
+                raise e
 
 # Função para executar o CK no repositório clonado
 def run_ck_on_repo(repo_name):
@@ -19,25 +30,43 @@ def run_ck_on_repo(repo_name):
     
     print(f"Executando CK no repositório {repo_name}...")
 
-    # Executa o CK no repositório clonado
-    subprocess.run(["java", "-jar", ck_jar_path, repo_name], check=True)
+    try:
+        subprocess.run(
+            ["java", "-jar", ck_jar_path, "."],
+            check=True,
+            cwd=repo_name, # Define o diretório do repositório como o diretório de trabalho
+            timeout=300
+        )
+        
+        for filename in os.listdir(repo_name):
+            if filename.endswith(".csv"):  # Move todos os arquivos CSV gerados pelo CK
+                shutil.move(os.path.join(repo_name, filename), os.path.join(output_dir, filename))
     
-    # Move os arquivos CSV gerados para a pasta ck_results/repo_name
-    for file in os.listdir("."):  # Verifica os arquivos na raiz do diretório atual
-        if file.endswith(".csv"):
-            shutil.move(file, os.path.join(output_dir, file))
+    except subprocess.CalledProcessError as e:
+        print(f"Falha ao executar CK no repositório {repo_name}: {e}")
+        raise e
+    except subprocess.TimeoutExpired:
+        print(f"O CK demorou muito para processar o repositório {repo_name} e foi interrompido.")
 
-# Função para remover o repositório clonado
+
+# Função para alterar permissões e remover o repositório clonado
 def remove_cloned_repo(repo_name):
     print(f"Removendo repositório {repo_name}...")
     folder_path = os.path.join(os.getcwd(), repo_name)
-    
-    # Verifica se o diretório existe antes de tentar removê-lo
-    if os.path.exists(folder_path):
-        shutil.rmtree(folder_path, ignore_errors=True)
-        print(f"Repositório {repo_name} removido com sucesso.")
-    else:
-        print(f"Diretório {folder_path} não encontrado.")
+
+    def on_rm_error(func, path, exc_info):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    try:
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path, onerror=on_rm_error)
+            print(f"Repositório {repo_name} removido com sucesso.")
+        else:
+            print(f"Diretório {folder_path} não encontrado.")
+    except Exception as e:
+        print(f"Erro ao remover {repo_name}: {e}")
+        raise e
 
 # Função para processar um único repositório (para ser usado em paralelo)
 def process_repo(repo):
@@ -51,11 +80,15 @@ def process_repo(repo):
         # 2. Executar o CK no repositório clonado
         run_ck_on_repo(repo_name)
         
-        # 3. Remover o repositório clonado da máquina para economizar espaço
-        remove_cloned_repo(repo_name)
-        
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"Erro ao processar o repositório {repo_name}: {e}")
+    
+    finally:
+        # 3. Remover o repositório clonado da máquina para economizar espaço
+        try:
+            remove_cloned_repo(repo_name)
+        except Exception as e:
+            print(f"Erro ao tentar remover {repo_name}: {e}")
 
 # Função para processar múltiplos repositórios em paralelo
 def process_multiple_repos_parallel(repo_list):
@@ -66,11 +99,11 @@ def process_multiple_repos_parallel(repo_list):
         # Aguarda todas as tarefas terminarem
         for future in concurrent.futures.as_completed(futures):
             try:
-                future.result()  # Verifica exceções
+                future.result()
             except Exception as e:
-                print(f"Erro durante o processamento: {e}")
+                print(f"Erro durante o processamento de um repositório: {e}")
 
-# Le a lista de repositórios armazenados após extração da API do GitHub
+# Lê a lista de repositórios armazenados após extração da API do GitHub
 def read_repos_from_csv(file_path):
     repo_list = []
     with open(file_path, mode='r', newline='', encoding='utf-8') as csvfile:
