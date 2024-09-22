@@ -3,6 +3,7 @@ import subprocess
 import time
 import shutil
 import csv
+import concurrent.futures
 
 # Função para clonar o repositório
 def clone_repo(repo_url, repo_name):
@@ -38,28 +39,38 @@ def remove_cloned_repo(repo_name):
     else:
         print(f"Diretório {folder_path} não encontrado.")
 
-# Função para processar múltiplos repositórios
-def process_multiple_repos(repo_list):
-    for repo in repo_list:
-        repo_url = repo["url"]
-        repo_name = repo["name"]
+# Função para processar um único repositório (para ser usado em paralelo)
+def process_repo(repo):
+    repo_url = repo["url"]
+    repo_name = repo["name"]
 
-        try:
-            # 1. Clonar o repositório
-            clone_repo(repo_url, repo_name)
-            
-            # 2. Executar o CK no repositório clonado
-            run_ck_on_repo(repo_name)
-            
-            # 3. Remover o repositório clonado da máquina para economizar espaço
-            remove_cloned_repo(repo_name)
-            
-        except subprocess.CalledProcessError as e:
-            print(f"Erro ao processar o repositório {repo_name}: {e}")
+    try:
+        # 1. Clonar o repositório
+        clone_repo(repo_url, repo_name)
         
-        time.sleep(5)
-    
-# Le a lista de repositórios armazenados após extração da api do github
+        # 2. Executar o CK no repositório clonado
+        run_ck_on_repo(repo_name)
+        
+        # 3. Remover o repositório clonado da máquina para economizar espaço
+        remove_cloned_repo(repo_name)
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Erro ao processar o repositório {repo_name}: {e}")
+
+# Função para processar múltiplos repositórios em paralelo
+def process_multiple_repos_parallel(repo_list):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Submete as tarefas para serem executadas em paralelo
+        futures = [executor.submit(process_repo, repo) for repo in repo_list]
+        
+        # Aguarda todas as tarefas terminarem
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()  # Verifica exceções
+            except Exception as e:
+                print(f"Erro durante o processamento: {e}")
+
+# Le a lista de repositórios armazenados após extração da API do GitHub
 def read_repos_from_csv(file_path):
     repo_list = []
     with open(file_path, mode='r', newline='', encoding='utf-8') as csvfile:
@@ -76,5 +87,9 @@ if __name__ == "__main__":
     file_path = os.path.join(directory, 'repos_info.csv')
     repo_list = read_repos_from_csv(file_path)
     
-    # Processa todos os repositórios da lista
-    process_multiple_repos(repo_list)
+    # Processa todos os repositórios da lista em paralelo
+    start_time = time.time()
+    process_multiple_repos_parallel(repo_list)
+    end_time = time.time()
+
+    print(f"Processamento completo em {end_time - start_time:.2f} segundos.")
