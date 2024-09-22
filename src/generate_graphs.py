@@ -1,10 +1,15 @@
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr, spearmanr
 
 # Carrega os dados do arquivo CSV com as métricas sumarizadas
-df = pd.read_csv('c:/Users/dtiDigital/Documents/puc/java-repository-analysis/src/ck_summary.csv')
+directory = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(directory, "ck_summary.csv")
+
+# Carrega o arquivo CSV em um DataFrame
+df = pd.read_csv(file_path)
 
 # Remove linhas com dados faltantes, se necessário
 df_clean = df.dropna()

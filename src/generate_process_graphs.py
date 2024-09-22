@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 # Função para criar gráficos das métricas de processo
 def plot_process_metrics(data_file):
@@ -35,5 +36,6 @@ def plot_process_metrics(data_file):
 
 # Main
 if __name__ == "__main__":
-    data_file = "c:/Users/dtiDigital/Documents/puc/java-repository-analysis/src/repos_info.csv"  # Nome do arquivo de dados
-    plot_process_metrics(data_file)
+    directory = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(directory, "repos_info.csv")
+    plot_process_metrics(file_path)
