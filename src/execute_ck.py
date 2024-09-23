@@ -31,11 +31,12 @@ def run_ck_on_repo(repo_name):
     print(f"Executando CK no repositório {repo_name}...")
 
     try:
+        # Aumenta a memória do Java com a flag -Xmx2G e o tempo limite para 600 segundos
         subprocess.run(
-            ["java", "-jar", ck_jar_path, "."],
+            ["java", "-Xmx2G", "-jar", ck_jar_path, "."],
             check=True,
-            cwd=repo_name, # Define o diretório do repositório como o diretório de trabalho
-            timeout=300
+            cwd=repo_name,  # Define o diretório do repositório como o diretório de trabalho
+            timeout=600  # Aumenta o tempo limite para repositórios maiores
         )
         
         for filename in os.listdir(repo_name):
@@ -47,7 +48,6 @@ def run_ck_on_repo(repo_name):
         raise e
     except subprocess.TimeoutExpired:
         print(f"O CK demorou muito para processar o repositório {repo_name} e foi interrompido.")
-
 
 # Função para alterar permissões e remover o repositório clonado
 def remove_cloned_repo(repo_name):
@@ -115,7 +115,7 @@ def read_repos_from_csv(file_path):
             })
     return repo_list
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     directory = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(directory, 'repos_info.csv')
     repo_list = read_repos_from_csv(file_path)
