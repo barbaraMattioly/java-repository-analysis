@@ -41,7 +41,7 @@ Em seguida, foi realizada a analyse dos repositórios e dados extraídos do CK c
        
     **Métrica:** A atividade dos repositórios medida pelo número de releases.
 
-    **Resultado:**  A maioria dos repositórios possuem poucas releases, o que indica que muitos não têm alta atividade de atualizações.
+    **Resultado:**  A maioria dos repositórios possuem poucas releases, o que pode indicar que muitos não têm alta atividade de atualizações.
     
     **Discussão do resultado:** Repositórios com alta atividade geralmente indicam um maior nível de manutenção e evolução contínua, o que pode estar ligado à implementação de boas práticas de qualidade, como testes e refatorações frequentes. Porém, alta atividade não necessariamente garante a qualidade do repositório, pois pode significar mudanças rápidas sem a devida validação.
     <div style="text-align: center;">
