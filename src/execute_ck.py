@@ -35,8 +35,8 @@ def run_ck_on_repo(repo_name):
         subprocess.run(
             ["java", "-Xmx2G", "-jar", ck_jar_path, "."],
             check=True,
-            cwd=repo_name,  # Define o diretório do repositório como o diretório de trabalho
-            timeout=600  # Aumenta o tempo limite para repositórios maiores
+            cwd=repo_name,
+            timeout=600
         )
         
         for filename in os.listdir(repo_name):
